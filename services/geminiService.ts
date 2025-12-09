@@ -1,10 +1,16 @@
 import { GoogleGenAI, Type } from "@google/genai";
 
-// Initialize Gemini Client
-// Note: process.env.API_KEY is injected by the environment.
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+// Initialize Gemini Client safely
+// Note: process.env.API_KEY is injected by the environment via Vite config.
+const apiKey = process.env.API_KEY;
+const ai = apiKey ? new GoogleGenAI({ apiKey }) : null;
 
 export const getProductRecommendations = async (query: string): Promise<string[]> => {
+  if (!ai) {
+    console.warn("Gemini API Key is missing. AI features will be disabled.");
+    return [];
+  }
+
   try {
     const model = 'gemini-2.5-flash';
     
@@ -35,6 +41,8 @@ export const getProductRecommendations = async (query: string): Promise<string[]
 };
 
 export const analyzeOrderTrend = async (productName: string): Promise<string> => {
+  if (!ai) return "不錯的選擇！";
+
   try {
     const model = 'gemini-2.5-flash';
     const response = await ai.models.generateContent({
