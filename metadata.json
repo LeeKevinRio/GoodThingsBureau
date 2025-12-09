@@ -1,0 +1,5 @@
+{
+  "name": "GlobalBuy AI Agent",
+  "description": "A smart purchasing agent platform allowing users to submit buy requests via Google Forms, featuring AI-powered product recommendations.",
+  "requestFramePermissions": []
+}
