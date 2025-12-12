@@ -55,3 +55,20 @@ export const analyzeOrderTrend = async (productName: string): Promise<string> =>
     return "非常棒的商品選擇。";
   }
 };
+
+export const generateProductDescription = async (productName: string, price: string): Promise<string> => {
+  if (!ai) return "這是一個非常棒的商品，推薦給大家！";
+
+  try {
+    const model = 'gemini-2.5-flash';
+    const response = await ai.models.generateContent({
+      model: model,
+      contents: `You are a professional group buying agent (團購主). Write a short, catchy, and persuasive product description (about 30-50 words) for "${productName}" priced at "${price}".
+      Use Traditional Chinese (Taiwan style). Include emojis. Highlight why it's a good deal.`,
+    });
+    return response.text || "";
+  } catch (error) {
+    console.error(error);
+    return "無法產生文案，請檢查網路連線。";
+  }
+};

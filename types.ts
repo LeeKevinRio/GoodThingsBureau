@@ -5,20 +5,21 @@ export interface ProductOption {
   category: string;
   priceEstimate: string;
   image: string;
+  description?: string;
+  groupId?: string; // New: Link this product to a specific Group ID (e.g., 'g1')
 }
 
 export interface CartItem {
   id: string;
   name: string;
   quantity: number;
-  priceEstimate: string; // Keep as string for display, parse for calculation if needed
+  priceEstimate: string;
 }
 
 export interface OrderFormState {
   name: string;
   email: string;
   address: string;
-  // product and quantity in state are now derived from cart for submission compatibility
   notes: string;
 }
 
@@ -32,7 +33,6 @@ export interface ChartData {
   value: number;
 }
 
-// The UI view model for the ticker
 export interface RecentOrder {
   id: string;
   buyer: string;
@@ -42,14 +42,24 @@ export interface RecentOrder {
   avatarColor: string;
 }
 
-// The raw data structure coming from Google Sheets (7 Columns)
+// Ensure this matches the columns in your new 'Groups' sheet
+export interface GroupSession {
+  id: string;
+  title: string;
+  description: string;
+  status: 'open' | 'closed' | 'coming_soon';
+  image: string;
+  endDate?: string;
+  participantCount?: number;
+}
+
 export interface SheetRow {
-  timestamp: string; // Column 1
-  name: string;      // Column 2
-  email: string;     // Column 3
-  address: string;   // Column 4
-  product: string;   // Column 5
-  quantity: string | number; // Column 6
-  notes: string;     // Column 7
-  [key: string]: any; // Allow loose matching if extra columns exist
+  timestamp: string;
+  name: string;
+  email: string;
+  address: string;
+  product: string;
+  quantity: string | number;
+  notes: string;
+  [key: string]: any;
 }

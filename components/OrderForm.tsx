@@ -1,13 +1,16 @@
 import React, { useState } from 'react';
-import { Send, CheckCircle, AlertCircle, ShoppingCart, User, Mail, MapPin, Check, Plus, Minus, Trash2 } from 'lucide-react';
-import { OrderFormState, SubmissionStatus, CartItem, ProductOption, RecentOrder } from '../types';
-import { PREDEFINED_PRODUCTS, GOOGLE_SHEET_CONFIG } from '../constants';
+import { Send, CheckCircle, AlertCircle, ShoppingCart, User, Mail, MapPin, Check, Plus, Minus, Trash2, ArrowLeft } from 'lucide-react';
+import { OrderFormState, SubmissionStatus, CartItem, ProductOption, RecentOrder, GroupSession } from '../types';
+import { GOOGLE_SHEET_CONFIG } from '../constants';
 
 interface OrderFormProps {
   onNewOrder: (order: RecentOrder) => void;
+  products: ProductOption[];
+  groupInfo?: GroupSession; // Optional context about which group we are in
+  onBack: () => void;
 }
 
-export const OrderForm: React.FC<OrderFormProps> = ({ onNewOrder }) => {
+export const OrderForm: React.FC<OrderFormProps> = ({ onNewOrder, products, groupInfo, onBack }) => {
   const [formData, setFormData] = useState<OrderFormState>({
     name: '',
     email: '',
@@ -103,6 +106,7 @@ export const OrderForm: React.FC<OrderFormProps> = ({ onNewOrder }) => {
     setStatus({ type: 'loading' });
 
     const payload = {
+      action: 'newOrder', // Explicitly state action for backend
       ...formData,
       product: productSummary,
       quantity: totalQuantity,
@@ -132,7 +136,10 @@ export const OrderForm: React.FC<OrderFormProps> = ({ onNewOrder }) => {
 
   if (status.type === 'success') {
     return (
-      <div className="bg-white rounded-2xl shadow-xl p-8 text-center border border-green-100">
+      <div className="bg-white rounded-2xl shadow-xl p-8 text-center border border-green-100 relative">
+         <button onClick={onBack} className="absolute top-4 left-4 p-2 text-slate-400 hover:text-slate-600 rounded-full hover:bg-slate-100 transition-colors">
+            <ArrowLeft size={20} />
+         </button>
         <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
           <CheckCircle className="text-green-600" size={32} />
         </div>
@@ -140,24 +147,43 @@ export const OrderForm: React.FC<OrderFormProps> = ({ onNewOrder }) => {
         <p className="text-slate-500 mb-6">
           您的訂單已成功登記，請看右側即時動態！
         </p>
-        <button 
-          onClick={() => setStatus({ type: 'idle' })}
-          className="px-6 py-2 bg-slate-900 text-white rounded-lg hover:bg-slate-800 transition-colors"
-        >
-          填寫下一筆
-        </button>
+        <div className="flex justify-center space-x-4">
+           <button 
+             onClick={onBack}
+             className="px-6 py-2 border border-slate-300 text-slate-600 rounded-lg hover:bg-slate-50 transition-colors"
+           >
+             返回活動列表
+           </button>
+           <button 
+             onClick={() => setStatus({ type: 'idle' })}
+             className="px-6 py-2 bg-slate-900 text-white rounded-lg hover:bg-slate-800 transition-colors"
+           >
+             填寫下一筆
+           </button>
+        </div>
       </div>
     );
   }
 
   return (
     <div className="bg-white rounded-2xl shadow-xl border border-rose-100 overflow-hidden">
-      <div className="bg-gradient-to-r from-rose-500 to-pink-600 p-6 text-white">
-        <h2 className="text-xl font-bold flex items-center">
-          <ShoppingCart className="mr-2" size={24} />
-          填寫團購單
-        </h2>
-        <p className="text-rose-100 text-sm mt-1">您可以選擇多樣商品，最後再一次結算。</p>
+      <div className="bg-gradient-to-r from-rose-500 to-pink-600 p-4 text-white">
+        <div className="flex items-center">
+          <button 
+             onClick={onBack} 
+             className="mr-3 p-1.5 hover:bg-white/20 rounded-full transition-colors"
+             title="返回活動列表"
+          >
+             <ArrowLeft size={20} />
+          </button>
+          <div>
+            <h2 className="text-lg font-bold flex items-center">
+              <ShoppingCart className="mr-2" size={20} />
+              {groupInfo ? groupInfo.title : '填寫團購單'}
+            </h2>
+            <p className="text-rose-100 text-xs mt-0.5 opacity-90">您可以選擇多樣商品，最後再一次結算。</p>
+          </div>
+        </div>
       </div>
 
       <div className="p-6 bg-slate-50 border-b border-rose-100">
@@ -168,7 +194,7 @@ export const OrderForm: React.FC<OrderFormProps> = ({ onNewOrder }) => {
         
         {/* Visual Product Grid */}
         <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-          {PREDEFINED_PRODUCTS.map((p) => {
+          {products.map((p) => {
             const inCart = cart.find(item => item.id === p.id);
             const qty = inCart ? inCart.quantity : 0;
             
@@ -176,7 +202,7 @@ export const OrderForm: React.FC<OrderFormProps> = ({ onNewOrder }) => {
               <div 
                 key={p.id}
                 className={`
-                  relative group rounded-xl overflow-hidden border-2 transition-all duration-200 bg-white
+                  relative group rounded-xl overflow-hidden border-2 transition-all duration-200 bg-white flex flex-col
                   ${qty > 0 ? 'border-rose-500 ring-2 ring-rose-200 shadow-md' : 'border-white hover:border-rose-200 shadow-sm'}
                 `}
               >
@@ -186,9 +212,10 @@ export const OrderForm: React.FC<OrderFormProps> = ({ onNewOrder }) => {
                     src={p.image} 
                     alt={p.name} 
                     className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                    onError={(e) => { (e.target as HTMLImageElement).src = 'https://placehold.co/400x300?text=No+Image'; }}
                   />
                   {/* Category Badge */}
-                  <div className="absolute top-2 left-2 bg-black/60 text-white text-[10px] px-2 py-0.5 rounded-full backdrop-blur-sm">
+                  <div className="absolute top-2 left-2 bg-black/60 text-white text-xs px-2 py-0.5 rounded-full backdrop-blur-sm">
                     {p.category}
                   </div>
                   
@@ -206,11 +233,19 @@ export const OrderForm: React.FC<OrderFormProps> = ({ onNewOrder }) => {
                 </div>
                 
                 {/* Content */}
-                <div className="p-3">
-                  <h3 className="font-semibold text-slate-800 text-sm line-clamp-1 mb-1">
+                <div className="p-3 flex-1 flex flex-col">
+                  <h3 className="font-semibold text-slate-800 text-sm line-clamp-1 mb-1" title={p.name}>
                     {p.name}
                   </h3>
-                  <div className="flex justify-between items-center mt-1">
+                  
+                  {/* Display Description if available */}
+                  {p.description && (
+                     <p className="text-xs text-slate-500 line-clamp-2 mb-2 bg-slate-50 p-1 rounded">
+                        {p.description}
+                     </p>
+                  )}
+
+                  <div className="flex justify-between items-end mt-auto pt-2">
                     <span className="text-rose-600 font-bold text-sm">{p.priceEstimate}</span>
                     
                     {qty > 0 ? (
@@ -243,6 +278,13 @@ export const OrderForm: React.FC<OrderFormProps> = ({ onNewOrder }) => {
             );
           })}
         </div>
+
+        {/* Fallback Empty state */}
+        {products.length === 0 && (
+           <div className="text-center p-8 bg-slate-50 rounded-xl">
+             <p className="text-slate-500">目前沒有開團商品，請稍後再試。</p>
+           </div>
+        )}
         
         {/* Fallback Error message */}
         {cart.length === 0 && status.type === 'error' && (
