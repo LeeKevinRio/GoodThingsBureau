@@ -1,13 +1,13 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from 'recharts';
 import { MOCK_TRENDS } from '../constants';
 
-const COLORS = ['#0ea5e9', '#6366f1', '#8b5cf6', '#ec4899', '#94a3b8'];
+const COLORS = ['#f43f5e', '#f59e0b', '#8b5cf6', '#10b981', '#94a3b8'];
 
 export const StatsChart: React.FC = () => {
   return (
-    <div className="h-64 w-full bg-white rounded-xl shadow-sm border border-slate-100 p-4">
-      <h3 className="text-sm font-semibold text-slate-700 mb-4">熱門代購類別</h3>
+    <div className="h-64 w-full bg-white rounded-xl shadow-sm border border-rose-100 p-4">
+      <h3 className="text-sm font-semibold text-slate-700 mb-4">本週熱門團購類別</h3>
       <ResponsiveContainer width="100%" height="100%">
         <PieChart>
           <Pie

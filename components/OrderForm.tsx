@@ -1,49 +1,81 @@
-import React, { useState, useEffect } from 'react';
-import { Send, CheckCircle, AlertCircle, ShoppingBag, User, Mail, Hash, MapPin } from 'lucide-react';
-import { OrderFormState, SubmissionStatus } from '../types';
+import React, { useState } from 'react';
+import { Send, CheckCircle, AlertCircle, ShoppingCart, User, Mail, MapPin, Check, Plus, Minus, Trash2 } from 'lucide-react';
+import { OrderFormState, SubmissionStatus, CartItem, ProductOption, RecentOrder } from '../types';
 import { PREDEFINED_PRODUCTS, GOOGLE_SHEET_CONFIG } from '../constants';
-import { analyzeOrderTrend } from '../services/geminiService';
 
 interface OrderFormProps {
-  initialProduct?: string;
-  onClearInitialProduct: () => void;
+  onNewOrder: (order: RecentOrder) => void;
 }
 
-export const OrderForm: React.FC<OrderFormProps> = ({ initialProduct, onClearInitialProduct }) => {
+export const OrderForm: React.FC<OrderFormProps> = ({ onNewOrder }) => {
   const [formData, setFormData] = useState<OrderFormState>({
     name: '',
     email: '',
     address: '',
-    product: '',
-    quantity: 1,
     notes: ''
   });
+  
+  const [cart, setCart] = useState<CartItem[]>([]);
   const [status, setStatus] = useState<SubmissionStatus>({ type: 'idle' });
-  const [aiTip, setAiTip] = useState<string>('');
-
-  // Update product when selected from AI Assistant
-  useEffect(() => {
-    if (initialProduct) {
-      setFormData(prev => ({ ...prev, product: initialProduct }));
-      onClearInitialProduct(); 
-      
-      // Get a quick AI tip for the selected product
-      analyzeOrderTrend(initialProduct).then(setAiTip);
-    }
-  }, [initialProduct, onClearInitialProduct]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
   };
 
+  // Cart Management
+  const addToCart = (product: ProductOption) => {
+    setCart(prev => {
+      const existing = prev.find(item => item.id === product.id);
+      if (existing) {
+        return prev.map(item => item.id === product.id ? { ...item, quantity: item.quantity + 1 } : item);
+      }
+      return [...prev, { id: product.id, name: product.name, quantity: 1, priceEstimate: product.priceEstimate }];
+    });
+  };
+
+  const updateQuantity = (productId: string, delta: number) => {
+    setCart(prev => {
+      return prev.map(item => {
+        if (item.id === productId) {
+          const newQty = item.quantity + delta;
+          return newQty > 0 ? { ...item, quantity: newQty } : item;
+        }
+        return item;
+      });
+    });
+  };
+
+  const removeFromCart = (productId: string) => {
+    setCart(prev => prev.filter(item => item.id !== productId));
+  };
+
+  const calculateTotal = () => {
+    return cart.reduce((sum, item) => {
+      const price = parseInt(item.priceEstimate.replace(/[^0-9]/g, '')) || 0;
+      return sum + (price * item.quantity);
+    }, 0);
+  };
+
   const validate = () => {
     if (!formData.name.trim()) return "請輸入姓名";
     if (!formData.email.trim() || !formData.email.includes('@')) return "請輸入有效的 Email";
-    if (!formData.address.trim()) return "請輸入收件地址";
-    if (!formData.product) return "請選擇或輸入商品名稱";
-    if (formData.quantity < 1) return "數量至少為 1";
+    if (cart.length === 0) return "請至少選擇一個團購商品";
+    if (!formData.address.trim()) return "請輸入取貨地點或寄送地址";
     return null;
+  };
+
+  // Helper to get random color
+  const getRandomColor = () => {
+    const colors = ['bg-blue-500', 'bg-pink-500', 'bg-green-500', 'bg-purple-500', 'bg-yellow-500', 'bg-indigo-500', 'bg-red-500'];
+    return colors[Math.floor(Math.random() * colors.length)];
+  };
+
+  // Helper to mask name (e.g. 王小明 -> 王*明)
+  const maskName = (name: string) => {
+    if (name.length <= 1) return name;
+    if (name.length === 2) return name[0] + '*';
+    return name[0] + '*' + name.slice(2);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -55,53 +87,43 @@ export const OrderForm: React.FC<OrderFormProps> = ({ initialProduct, onClearIni
       return;
     }
 
-    // Check if user has configured the URL
-    if (GOOGLE_SHEET_CONFIG.SCRIPT_URL.includes('REPLACE_WITH')) {
-       const isDemo = window.confirm(
-         "⚠️ 設定尚未完成\n\n" + 
-         "您尚未在 constants.ts 中更新 'SCRIPT_URL' 為您的 Google Apps Script 網址。\n\n" +
-         "點擊 [確定] 進入演示模式 (Demo Mode - 資料不會儲存)。\n" +
-         "點擊 [取消] 返回並修正程式碼。"
-       );
+    const productSummary = cart.map(item => `${item.name} x${item.quantity}`).join(', ');
+    const totalQuantity = cart.reduce((sum, item) => sum + item.quantity, 0);
 
-       if (isDemo) {
-         console.log("%c[DEMO MODE] Form Data:", "color: #0ea5e9; font-weight: bold;", formData);
-         setStatus({ type: 'loading' });
-         await new Promise(r => setTimeout(r, 1500)); // Fake delay
-         setStatus({ type: 'success' });
-         setFormData({ name: '', email: '', address: '', product: '', quantity: 1, notes: '' });
-         setAiTip('');
-       }
-       return;
-    }
+    // Prepare visual update for Ticker
+    const newTickerOrder: RecentOrder = {
+      id: Date.now().toString(),
+      buyer: maskName(formData.name), // Mask the name for privacy in ticker
+      product: cart.length > 1 ? `${cart[0].name} 等${cart.length}樣` : cart[0].name,
+      quantity: totalQuantity,
+      time: '剛剛', // Just now
+      avatarColor: getRandomColor()
+    };
 
     setStatus({ type: 'loading' });
 
-    // Debug Log
-    console.log("🚀 Submitting to Google Sheets...");
-    console.log("URL:", GOOGLE_SHEET_CONFIG.SCRIPT_URL);
-    console.log("Payload:", JSON.stringify(formData));
+    const payload = {
+      ...formData,
+      product: productSummary,
+      quantity: totalQuantity,
+    };
 
     try {
-      // Send data to Google Apps Script Web App
-      // We use 'no-cors' mode because Apps Script redirects can cause CORS errors in strict browsers.
-      // The script will still receive and process the data.
       await fetch(GOOGLE_SHEET_CONFIG.SCRIPT_URL, {
         method: 'POST',
         mode: 'no-cors',
         headers: {
-          'Content-Type': 'text/plain', // Use text/plain to avoid preflight options request
+          'Content-Type': 'text/plain',
         },
-        body: JSON.stringify(formData)
+        body: JSON.stringify(payload)
       });
       
-      console.log("✅ Request sent (Note: 'no-cors' mode hides the actual response status from the browser)");
-
-      // Since we used no-cors, we can't read the response status, 
-      // but if no network error occurred, we assume success.
       setStatus({ type: 'success' });
-      setFormData({ name: '', email: '', address: '', product: '', quantity: 1, notes: '' });
-      setAiTip('');
+      // Add to ticker!
+      onNewOrder(newTickerOrder);
+
+      setCart([]);
+      setFormData({ name: '', email: '', address: '', notes: '' });
     } catch (err) {
       console.error("❌ Submission Error:", err);
       setStatus({ type: 'error', message: '提交失敗，請檢查網路連線。' });
@@ -114,71 +136,206 @@ export const OrderForm: React.FC<OrderFormProps> = ({ initialProduct, onClearIni
         <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
           <CheckCircle className="text-green-600" size={32} />
         </div>
-        <h3 className="text-2xl font-bold text-slate-800 mb-2">委託單已收到！</h3>
+        <h3 className="text-2xl font-bold text-slate-800 mb-2">團購單已送出！</h3>
         <p className="text-slate-500 mb-6">
-          我們已將您的需求記錄在案，稍後將透過 <strong>{formData.email}</strong> 與您聯繫。
+          您的訂單已成功登記，請看右側即時動態！
         </p>
         <button 
           onClick={() => setStatus({ type: 'idle' })}
           className="px-6 py-2 bg-slate-900 text-white rounded-lg hover:bg-slate-800 transition-colors"
         >
-          提交另一筆委託
+          填寫下一筆
         </button>
       </div>
     );
   }
 
   return (
-    <div className="bg-white rounded-2xl shadow-xl border border-slate-100 overflow-hidden">
-      <div className="bg-slate-900 p-6 text-white">
+    <div className="bg-white rounded-2xl shadow-xl border border-rose-100 overflow-hidden">
+      <div className="bg-gradient-to-r from-rose-500 to-pink-600 p-6 text-white">
         <h2 className="text-xl font-bold flex items-center">
-          <ShoppingBag className="mr-2" size={24} />
-          新增代購委託
+          <ShoppingCart className="mr-2" size={24} />
+          填寫團購單
         </h2>
-        <p className="text-slate-400 text-sm mt-1">請填寫以下資訊，我們將為您處理後續事宜。</p>
+        <p className="text-rose-100 text-sm mt-1">您可以選擇多樣商品，最後再一次結算。</p>
+      </div>
+
+      <div className="p-6 bg-slate-50 border-b border-rose-100">
+        <label className="block text-sm font-bold text-slate-700 mb-3 flex items-center">
+          <span className="w-6 h-6 rounded-full bg-rose-500 text-white flex items-center justify-center text-xs mr-2">1</span>
+          點擊圖片加入購物車
+        </label>
+        
+        {/* Visual Product Grid */}
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+          {PREDEFINED_PRODUCTS.map((p) => {
+            const inCart = cart.find(item => item.id === p.id);
+            const qty = inCart ? inCart.quantity : 0;
+            
+            return (
+              <div 
+                key={p.id}
+                className={`
+                  relative group rounded-xl overflow-hidden border-2 transition-all duration-200 bg-white
+                  ${qty > 0 ? 'border-rose-500 ring-2 ring-rose-200 shadow-md' : 'border-white hover:border-rose-200 shadow-sm'}
+                `}
+              >
+                {/* Image */}
+                <div className="aspect-[4/3] w-full overflow-hidden bg-gray-200 relative">
+                  <img 
+                    src={p.image} 
+                    alt={p.name} 
+                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                  />
+                  {/* Category Badge */}
+                  <div className="absolute top-2 left-2 bg-black/60 text-white text-[10px] px-2 py-0.5 rounded-full backdrop-blur-sm">
+                    {p.category}
+                  </div>
+                  
+                  {/* Overlay for clicking (Mobile friendly) */}
+                  {!qty && (
+                    <div 
+                      onClick={() => addToCart(p)}
+                      className="absolute inset-0 bg-black/0 hover:bg-black/10 transition-colors cursor-pointer flex items-center justify-center"
+                    >
+                      <div className="bg-white/90 rounded-full p-2 opacity-0 group-hover:opacity-100 transition-opacity transform scale-90 group-hover:scale-100 shadow-lg">
+                        <Plus className="text-rose-600" size={24} />
+                      </div>
+                    </div>
+                  )}
+                </div>
+                
+                {/* Content */}
+                <div className="p-3">
+                  <h3 className="font-semibold text-slate-800 text-sm line-clamp-1 mb-1">
+                    {p.name}
+                  </h3>
+                  <div className="flex justify-between items-center mt-1">
+                    <span className="text-rose-600 font-bold text-sm">{p.priceEstimate}</span>
+                    
+                    {qty > 0 ? (
+                      <div className="flex items-center bg-rose-50 rounded-lg p-0.5 border border-rose-200">
+                        <button 
+                          onClick={() => qty === 1 ? removeFromCart(p.id) : updateQuantity(p.id, -1)}
+                          className="p-1 hover:bg-rose-200 rounded-md text-rose-700 transition-colors"
+                        >
+                          {qty === 1 ? <Trash2 size={14} /> : <Minus size={14} />}
+                        </button>
+                        <span className="text-xs font-bold w-6 text-center text-rose-800">{qty}</span>
+                        <button 
+                          onClick={() => updateQuantity(p.id, 1)}
+                          className="p-1 hover:bg-rose-200 rounded-md text-rose-700 transition-colors"
+                        >
+                          <Plus size={14} />
+                        </button>
+                      </div>
+                    ) : (
+                      <button 
+                         onClick={() => addToCart(p)}
+                         className="text-xs bg-slate-100 hover:bg-rose-500 hover:text-white text-slate-600 px-2 py-1 rounded-md transition-colors"
+                      >
+                        加入
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+        
+        {/* Fallback Error message */}
+        {cart.length === 0 && status.type === 'error' && (
+          <p className="text-red-500 text-sm mt-4 font-medium flex items-center justify-center bg-red-50 p-2 rounded-lg">
+             <AlertCircle size={16} className="mr-2" />
+             請點擊圖片，至少選擇一樣商品。
+          </p>
+        )}
       </div>
 
       <form onSubmit={handleSubmit} className="p-8 space-y-6">
         
-        {/* Name Field */}
-        <div>
-          <label className="block text-sm font-medium text-slate-700 mb-1">姓名</label>
-          <div className="relative">
-            <span className="absolute left-3 top-3 text-slate-400">
-              <User size={18} />
-            </span>
-            <input
-              type="text"
-              name="name"
-              value={formData.name}
-              onChange={handleChange}
-              className="w-full pl-10 pr-4 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none transition-all"
-              placeholder="請輸入您的真實姓名"
-            />
+        {/* Cart Summary */}
+        {cart.length > 0 && (
+          <div className="bg-slate-50 rounded-xl p-4 border border-slate-200">
+             <div className="flex justify-between items-center mb-3 pb-2 border-b border-slate-200">
+               <h3 className="font-bold text-slate-700 flex items-center">
+                 <ShoppingCart size={18} className="mr-2" />
+                 已選商品清單
+               </h3>
+               <span className="text-xs text-slate-500">共 {cart.reduce((a, b) => a + b.quantity, 0)} 件</span>
+             </div>
+             <div className="space-y-2 max-h-40 overflow-y-auto pr-1 custom-scrollbar">
+                {cart.map(item => (
+                  <div key={item.id} className="flex justify-between items-center text-sm">
+                    <div className="flex items-center text-slate-700 truncate mr-2">
+                       <span className="w-5 h-5 bg-white border border-slate-300 rounded-full flex items-center justify-center text-xs mr-2 font-medium shrink-0">
+                         {item.quantity}
+                       </span>
+                       <span className="truncate">{item.name}</span>
+                    </div>
+                    <div className="flex items-center">
+                       <span className="text-slate-500 mr-3 text-xs">{item.priceEstimate}/個</span>
+                       <button type="button" onClick={() => removeFromCart(item.id)} className="text-slate-400 hover:text-red-500">
+                         <Trash2 size={14} />
+                       </button>
+                    </div>
+                  </div>
+                ))}
+             </div>
+             <div className="mt-3 pt-2 border-t border-slate-200 flex justify-between items-center">
+                <span className="text-sm font-medium text-slate-600">預估總金額</span>
+                <span className="text-lg font-bold text-rose-600">${calculateTotal()}</span>
+             </div>
           </div>
-        </div>
+        )}
 
-        {/* Email Field */}
-        <div>
-          <label className="block text-sm font-medium text-slate-700 mb-1">Gmail 信箱</label>
-          <div className="relative">
-            <span className="absolute left-3 top-3 text-slate-400">
-              <Mail size={18} />
-            </span>
-            <input
-              type="email"
-              name="email"
-              value={formData.email}
-              onChange={handleChange}
-              className="w-full pl-10 pr-4 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none transition-all"
-              placeholder="example@gmail.com"
-            />
+        <label className="block text-sm font-bold text-slate-700 mb-1 flex items-center">
+          <span className="w-6 h-6 rounded-full bg-rose-500 text-white flex items-center justify-center text-xs mr-2">2</span>
+          填寫訂購資料
+        </label>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {/* Name Field */}
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">團員姓名 / 暱稱</label>
+            <div className="relative">
+              <span className="absolute left-3 top-3 text-slate-400">
+                <User size={18} />
+              </span>
+              <input
+                type="text"
+                name="name"
+                value={formData.name}
+                onChange={handleChange}
+                className="w-full pl-10 pr-4 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none transition-all"
+                placeholder="怎麼稱呼您？"
+              />
+            </div>
+          </div>
+
+          {/* Email Field */}
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">Gmail 信箱</label>
+            <div className="relative">
+              <span className="absolute left-3 top-3 text-slate-400">
+                <Mail size={18} />
+              </span>
+              <input
+                type="email"
+                name="email"
+                value={formData.email}
+                onChange={handleChange}
+                className="w-full pl-10 pr-4 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none transition-all"
+                placeholder="用於接收到貨通知"
+              />
+            </div>
           </div>
         </div>
 
         {/* Address Field */}
         <div>
-          <label className="block text-sm font-medium text-slate-700 mb-1">收件地址 (台灣)</label>
+          <label className="block text-sm font-medium text-slate-700 mb-1">取貨方式 / 地址</label>
           <div className="relative">
             <span className="absolute left-3 top-3 text-slate-400">
               <MapPin size={18} />
@@ -189,68 +346,21 @@ export const OrderForm: React.FC<OrderFormProps> = ({ initialProduct, onClearIni
               value={formData.address}
               onChange={handleChange}
               className="w-full pl-10 pr-4 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none transition-all"
-              placeholder="請輸入完整地址 (包含縣市/區/路/號/樓層)"
+              placeholder="例如：店面自取 或 台北市信義區..."
             />
-          </div>
-        </div>
-
-        {/* Product Selection (Dropdown with Search) */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <div className="md:col-span-2">
-            <label className="block text-sm font-medium text-slate-700 mb-1">商品名稱</label>
-            <div className="relative">
-              <input
-                list="predefined-products"
-                type="text"
-                name="product"
-                value={formData.product}
-                onChange={handleChange}
-                className="w-full pl-4 pr-4 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none transition-all"
-                placeholder="選擇或輸入商品名稱..."
-                autoComplete="off"
-              />
-              <datalist id="predefined-products">
-                {PREDEFINED_PRODUCTS.map(p => (
-                  <option key={p.id} value={p.name}>{p.category} - {p.priceEstimate}</option>
-                ))}
-              </datalist>
-            </div>
-            {aiTip && (
-              <p className="text-xs text-indigo-600 mt-2 flex items-start bg-indigo-50 p-2 rounded">
-                <span className="font-bold mr-1">AI 建議:</span> {aiTip}
-              </p>
-            )}
-          </div>
-
-          {/* Quantity */}
-          <div className="md:col-span-1">
-            <label className="block text-sm font-medium text-slate-700 mb-1">數量</label>
-            <div className="relative">
-              <span className="absolute left-3 top-3 text-slate-400">
-                <Hash size={18} />
-              </span>
-              <input
-                type="number"
-                name="quantity"
-                min="1"
-                value={formData.quantity}
-                onChange={handleChange}
-                className="w-full pl-10 pr-4 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none transition-all"
-              />
-            </div>
           </div>
         </div>
 
         {/* Notes */}
         <div>
-           <label className="block text-sm font-medium text-slate-700 mb-1">其他備註 (選填)</label>
+           <label className="block text-sm font-medium text-slate-700 mb-1">備註 (口味/款式/許願)</label>
            <textarea
              name="notes"
              value={formData.notes}
              onChange={handleChange}
              rows={2}
              className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none resize-none"
-             placeholder="顏色、尺寸、網址連結..."
+             placeholder="例如：微糖少冰、這款想要紅色..."
            />
         </div>
 
@@ -266,18 +376,18 @@ export const OrderForm: React.FC<OrderFormProps> = ({ initialProduct, onClearIni
         <button
           type="submit"
           disabled={status.type === 'loading'}
-          className={`w-full py-4 rounded-xl text-white font-bold text-lg shadow-lg shadow-primary-500/30 flex items-center justify-center transition-all transform active:scale-95
-            ${status.type === 'loading' ? 'bg-slate-400 cursor-not-allowed' : 'bg-gradient-to-r from-primary-600 to-primary-500 hover:from-primary-500 hover:to-primary-400'}
+          className={`w-full py-4 rounded-xl text-white font-bold text-lg shadow-lg shadow-rose-500/30 flex items-center justify-center transition-all transform active:scale-95
+            ${status.type === 'loading' ? 'bg-slate-400 cursor-not-allowed' : 'bg-gradient-to-r from-rose-500 to-pink-600 hover:from-rose-600 hover:to-pink-700'}
           `}
         >
           {status.type === 'loading' ? (
             <span className="flex items-center">
               <span className="animate-spin h-5 w-5 border-2 border-white border-t-transparent rounded-full mr-3"></span>
-              處理中...
+              登記中...
             </span>
           ) : (
             <span className="flex items-center">
-              送出委託 <Send size={20} className="ml-2" />
+              確認跟團 (共 {cart.reduce((a,b)=>a+b.quantity,0)} 件) <Send size={20} className="ml-2" />
             </span>
           )}
         </button>

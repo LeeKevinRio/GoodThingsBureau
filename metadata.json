@@ -1,5 +1,5 @@
 {
-  "name": "GlobalBuy AI Agent",
-  "description": "A smart purchasing agent platform allowing users to submit buy requests via Google Forms, featuring AI-powered product recommendations.",
+  "name": "HappyGroup 團購小幫手",
+  "description": "一個方便的團購統計平台，讓主購輕鬆收集大家的訂單。",
   "requestFramePermissions": []
 }
