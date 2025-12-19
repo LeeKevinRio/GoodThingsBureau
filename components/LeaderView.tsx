@@ -10,20 +10,25 @@ interface LeaderViewProps {
   onRefresh: () => void;
 }
 
+/**
+ * 團主後台管理視圖
+ * Allows the group leader to create new groups, edit existing ones, and manage products.
+ */
 export const LeaderView: React.FC<LeaderViewProps> = ({ allProducts, groups, onRefresh }) => {
   // Mode: 'list' shows all groups. 'edit' shows the form for a single group.
   const [mode, setMode] = useState<'list' | 'edit'>('list');
   
-  // The data being edited
+  // 編輯中的暫存資料
   const [editGroup, setEditGroup] = useState<GroupSession | null>(null);
   const [editProducts, setEditProducts] = useState<ProductOption[]>([]);
   
   const [isSaving, setIsSaving] = useState(false);
-  const [isGeneratingAI, setIsGeneratingAI] = useState<string | null>(null);
+  const [isGeneratingAI, setIsGeneratingAI] = useState<string | null>(null); // Track which product is generating AI text
   const [statusMsg, setStatusMsg] = useState('');
 
   // --- Actions ---
 
+  // 建立新團購活動 (初始化預設值)
   const handleCreateGroup = () => {
     const newId = `g-${Date.now()}`;
     const newGroup: GroupSession = {
@@ -41,9 +46,10 @@ export const LeaderView: React.FC<LeaderViewProps> = ({ allProducts, groups, onR
     setMode('edit');
   };
 
+  // 編輯現有活動
   const handleEditGroup = (group: GroupSession) => {
     setEditGroup(group);
-    // Filter products that belong to this group
+    // 篩選出屬於該團購的商品
     const groupProducts = allProducts.filter(p => p.groupId === group.id);
     setEditProducts(groupProducts);
     setStatusMsg('');
@@ -66,7 +72,7 @@ export const LeaderView: React.FC<LeaderViewProps> = ({ allProducts, groups, onR
       priceEstimate: '$100',
       image: 'https://images.unsplash.com/photo-1595079676339-1534801ad6cf?auto=format&fit=crop&w=400&q=80',
       description: '',
-      groupId: editGroup.id // Automatically link to current group
+      groupId: editGroup.id // 自動關聯到當前團購 ID
     };
     setEditProducts([newProduct, ...editProducts]);
   };
@@ -81,6 +87,7 @@ export const LeaderView: React.FC<LeaderViewProps> = ({ allProducts, groups, onR
     }
   };
 
+  // AI 自動生成文案按鈕處理
   const handleAIGenerate = async (product: ProductOption) => {
     if (!product.name) {
       alert('請先輸入商品名稱');
@@ -92,7 +99,7 @@ export const LeaderView: React.FC<LeaderViewProps> = ({ allProducts, groups, onR
     setIsGeneratingAI(null);
   };
 
-  // --- Saving ---
+  // --- Saving Logic (儲存到 Google Sheets) ---
 
   const handleSaveAll = async () => {
     if (!editGroup) return;
@@ -100,11 +107,7 @@ export const LeaderView: React.FC<LeaderViewProps> = ({ allProducts, groups, onR
     setStatusMsg('儲存中...');
 
     try {
-      // 1. Save Group Metadata
-      // We construct a payload to save the group. The backend needs to handle 'saveGroup'.
-      // Note: Since we are replacing the frontend flow, we assume the backend has been updated to support 'saveGroup'.
-      // If not, we'll gracefully handle it or simulate it.
-      
+      // 1. 儲存團購活動設定 (Group Metadata)
       const groupPayload = {
         action: 'saveGroup',
         group: editGroup
@@ -117,9 +120,9 @@ export const LeaderView: React.FC<LeaderViewProps> = ({ allProducts, groups, onR
         body: JSON.stringify(groupPayload)
       });
 
-      // 2. Save Products
-      // IMPORTANT: The backend 'saveProducts' overwrites ALL products.
-      // We must merge current group products with OTHER existing products to avoid data loss.
+      // 2. 儲存商品列表 (Products)
+      // 重要：後端的 'saveProducts' 是覆寫整個 Sheet。
+      // 所以我們必須將「當前編輯的商品」與「其他團購的商品」合併，避免遺失其他活動的資料。
       const otherProducts = allProducts.filter(p => p.groupId !== editGroup.id);
       const allProductsToSave = [...editProducts, ...otherProducts];
 
@@ -136,9 +139,8 @@ export const LeaderView: React.FC<LeaderViewProps> = ({ allProducts, groups, onR
       });
 
       setStatusMsg('✅ 儲存成功！');
-      onRefresh(); // Trigger App refresh
+      onRefresh(); // 觸發外層 App 重新抓取資料
       
-      // Optional: stay in edit mode or go back? Let's stay so they can keep editing.
     } catch (error) {
       console.error(error);
       setStatusMsg('❌ 儲存失敗，請檢查網路');
@@ -147,7 +149,7 @@ export const LeaderView: React.FC<LeaderViewProps> = ({ allProducts, groups, onR
     }
   };
 
-  // --- Render: Group List Mode ---
+  // --- Render: Group List Mode (活動列表) ---
   if (mode === 'list') {
     return (
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
@@ -204,7 +206,7 @@ export const LeaderView: React.FC<LeaderViewProps> = ({ allProducts, groups, onR
     );
   }
 
-  // --- Render: Edit Mode ---
+  // --- Render: Edit Mode (編輯器) ---
   if (!editGroup) return null;
 
   return (

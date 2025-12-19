@@ -8,8 +8,13 @@ interface GroupListProps {
   loading: boolean;
 }
 
+/**
+ * 團購大廳列表 (Lobby)
+ * Displays all available group buy sessions (Open, Coming Soon, Closed).
+ */
 export const GroupList: React.FC<GroupListProps> = ({ groups, onSelectGroup, loading }) => {
   
+  // Loading State
   if (loading && groups.length === 0) {
     return (
       <div className="text-center py-20 bg-white rounded-2xl border border-rose-100 shadow-sm">
@@ -19,6 +24,7 @@ export const GroupList: React.FC<GroupListProps> = ({ groups, onSelectGroup, loa
     );
   }
 
+  // Empty State
   if (!loading && groups.length === 0) {
     return (
       <div className="text-center py-20 bg-white rounded-2xl border border-slate-200 shadow-sm">
@@ -55,7 +61,7 @@ export const GroupList: React.FC<GroupListProps> = ({ groups, onSelectGroup, loa
               />
               <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent"></div>
               
-              {/* Status Badge */}
+              {/* Status Badge (根據狀態顯示不同標籤) */}
               <div className="absolute top-4 right-4">
                 {group.status === 'open' && (
                   <span className="bg-rose-500 text-white text-xs font-bold px-3 py-1 rounded-full shadow-lg flex items-center animate-pulse">

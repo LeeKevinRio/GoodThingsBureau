@@ -2,9 +2,16 @@ import { GoogleGenAI, Type } from "@google/genai";
 
 // Initialize Gemini Client safely
 // Note: process.env.API_KEY is injected by the environment via Vite config.
+// 初始化 Google Gemini AI 客戶端
 const apiKey = process.env.API_KEY;
 const ai = apiKey ? new GoogleGenAI({ apiKey }) : null;
 
+/**
+ * 取得 AI 推薦商品
+ * Uses Gemini to suggest trending products based on a user query.
+ * @param query 使用者輸入的搜尋關鍵字
+ * @returns 推薦的商品名稱陣列
+ */
 export const getProductRecommendations = async (query: string): Promise<string[]> => {
   if (!ai) {
     console.warn("Gemini API Key is missing. AI features will be disabled.");
@@ -14,6 +21,7 @@ export const getProductRecommendations = async (query: string): Promise<string[]
   try {
     const model = 'gemini-2.5-flash';
     
+    // 設定 Prompt，要求回傳繁體中文的 JSON Array
     const response = await ai.models.generateContent({
       model: model,
       contents: `Suggest 5 specific, trending product names for a purchasing agent request based on this user query: "${query}". 
@@ -40,6 +48,10 @@ export const getProductRecommendations = async (query: string): Promise<string[]
   }
 };
 
+/**
+ * 分析商品趨勢 (趣味小知識)
+ * Generates a short fun fact or buying tip for a specific product.
+ */
 export const analyzeOrderTrend = async (productName: string): Promise<string> => {
   if (!ai) return "不錯的選擇！";
 
@@ -56,6 +68,12 @@ export const analyzeOrderTrend = async (productName: string): Promise<string> =>
   }
 };
 
+/**
+ * 生成商品文案 (用於後台編輯器)
+ * Generates a persuasive product description for the admin editor.
+ * @param productName 商品名稱
+ * @param price 商品價格
+ */
 export const generateProductDescription = async (productName: string, price: string): Promise<string> => {
   if (!ai) return "這是一個非常棒的商品，推薦給大家！";
 

@@ -8,6 +8,10 @@ interface LiveTickerProps {
   error?: string | null;
 }
 
+/**
+ * 即時跟團動態 (跑馬燈)
+ * Displays a vertically scrolling list of recent orders to create a sense of activity ("Fear Of Missing Out").
+ */
 export const LiveTicker: React.FC<LiveTickerProps> = ({ orders, loading = false, error = null }) => {
   const [activeIndex, setActiveIndex] = useState(0);
 
@@ -20,12 +24,14 @@ export const LiveTicker: React.FC<LiveTickerProps> = ({ orders, loading = false,
     第一筆訂單資料: orders[0] || '無'
   });
 
+  // 自動輪播邏輯
   useEffect(() => {
-    // 當訂單長度改變時，重置或更新 Interval
+    // 當訂單長度改變時，記錄日誌
     if (orders.length > 0) {
       console.log('✅ [LiveTicker] 訂單列表已更新，目前共', orders.length, '筆');
     }
 
+    // 每 3 秒切換顯示下一組
     const interval = setInterval(() => {
       if (orders.length > 0) {
         setActiveIndex((prev) => (prev + 1) % orders.length);
@@ -35,7 +41,7 @@ export const LiveTicker: React.FC<LiveTickerProps> = ({ orders, loading = false,
     return () => clearInterval(interval);
   }, [orders.length]);
 
-  // We display up to 4 items at a time
+  // 計算當前可見的 4 筆訂單 (循環陣列)
   const getVisibleItems = () => {
     if (orders.length === 0) return [];
     

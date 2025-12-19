@@ -4,13 +4,18 @@ import { OrderFormState, SubmissionStatus, CartItem, ProductOption, RecentOrder,
 import { GOOGLE_SHEET_CONFIG } from '../constants';
 
 interface OrderFormProps {
-  onNewOrder: (order: RecentOrder) => void;
-  products: ProductOption[];
-  groupInfo?: GroupSession; // Optional context about which group we are in
-  onBack: () => void;
+  onNewOrder: (order: RecentOrder) => void; // 提交成功後的回呼函式
+  products: ProductOption[];              // 可購買的商品列表
+  groupInfo?: GroupSession;               // 當前團購活動資訊
+  onBack: () => void;                     // 返回列表頁函式
 }
 
+/**
+ * 訂購表單元件
+ * Handles product selection (cart), form input, and submission to Google Sheets.
+ */
 export const OrderForm: React.FC<OrderFormProps> = ({ onNewOrder, products, groupInfo, onBack }) => {
+  // 表單資料狀態
   const [formData, setFormData] = useState<OrderFormState>({
     name: '',
     email: '',
@@ -18,21 +23,27 @@ export const OrderForm: React.FC<OrderFormProps> = ({ onNewOrder, products, grou
     notes: ''
   });
   
+  // 購物車狀態
   const [cart, setCart] = useState<CartItem[]>([]);
+  // 提交狀態 (Idle -> Loading -> Success/Error)
   const [status, setStatus] = useState<SubmissionStatus>({ type: 'idle' });
 
+  // 處理表單輸入變更
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
   };
 
-  // Cart Management
+  // --- 購物車管理邏輯 ---
+
   const addToCart = (product: ProductOption) => {
     setCart(prev => {
       const existing = prev.find(item => item.id === product.id);
       if (existing) {
+        // 如果已存在，數量 +1
         return prev.map(item => item.id === product.id ? { ...item, quantity: item.quantity + 1 } : item);
       }
+      // 如果不存在，新增項目
       return [...prev, { id: product.id, name: product.name, quantity: 1, priceEstimate: product.priceEstimate }];
     });
   };
@@ -53,13 +64,21 @@ export const OrderForm: React.FC<OrderFormProps> = ({ onNewOrder, products, grou
     setCart(prev => prev.filter(item => item.id !== productId));
   };
 
+  /**
+   * 計算總金額
+   * Safety Fix: Handles non-numeric price strings gracefully.
+   */
   const calculateTotal = () => {
     return cart.reduce((sum, item) => {
-      const price = parseInt(item.priceEstimate.replace(/[^0-9]/g, '')) || 0;
+      // 確保價格是字串，避免 replace 報錯
+      const priceStr = String(item.priceEstimate || '0');
+      // 移除所有非數字字符 (如 '$', '元') 並轉為整數
+      const price = parseInt(priceStr.replace(/[^0-9]/g, '')) || 0;
       return sum + (price * item.quantity);
     }, 0);
   };
 
+  // 表單驗證
   const validate = () => {
     if (!formData.name.trim()) return "請輸入姓名";
     if (!formData.email.trim() || !formData.email.includes('@')) return "請輸入有效的 Email";
@@ -68,19 +87,20 @@ export const OrderForm: React.FC<OrderFormProps> = ({ onNewOrder, products, grou
     return null;
   };
 
-  // Helper to get random color
+  // Helper: 隨機顏色 (用於產生假頭像)
   const getRandomColor = () => {
     const colors = ['bg-blue-500', 'bg-pink-500', 'bg-green-500', 'bg-purple-500', 'bg-yellow-500', 'bg-indigo-500', 'bg-red-500'];
     return colors[Math.floor(Math.random() * colors.length)];
   };
 
-  // Helper to mask name (e.g. 王小明 -> 王*明)
+  // Helper: 名字隱碼
   const maskName = (name: string) => {
     if (name.length <= 1) return name;
     if (name.length === 2) return name[0] + '*';
     return name[0] + '*' + name.slice(2);
   };
 
+  // 提交訂單
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -90,29 +110,37 @@ export const OrderForm: React.FC<OrderFormProps> = ({ onNewOrder, products, grou
       return;
     }
 
+    // 格式化商品摘要
     const productSummary = cart.map(item => `${item.name} x${item.quantity}`).join(', ');
     const totalQuantity = cart.reduce((sum, item) => sum + item.quantity, 0);
 
-    // Prepare visual update for Ticker
+    // 準備用於前端即時顯示的訂單物件 (Optimistic UI Update)
     const newTickerOrder: RecentOrder = {
       id: Date.now().toString(),
-      buyer: maskName(formData.name), // Mask the name for privacy in ticker
+      buyer: maskName(formData.name),
       product: cart.length > 1 ? `${cart[0].name} 等${cart.length}樣` : cart[0].name,
       quantity: totalQuantity,
-      time: '剛剛', // Just now
-      avatarColor: getRandomColor()
+      time: '剛剛',
+      avatarColor: getRandomColor(),
+      groupId: groupInfo?.id, // 傳遞給前端顯示用
+      groupTitle: groupInfo?.title
     };
 
     setStatus({ type: 'loading' });
 
+    // 準備傳送給 Google Apps Script 的 Payload
+    // Added: groupId and groupTitle
     const payload = {
-      action: 'newOrder', // Explicitly state action for backend
+      action: 'newOrder',
       ...formData,
       product: productSummary,
       quantity: totalQuantity,
+      groupId: groupInfo?.id || '',
+      groupTitle: groupInfo?.title || ''
     };
 
     try {
+      // 發送 POST 請求 (使用 no-cors 避免 CORS 錯誤，但無法讀取回應內容)
       await fetch(GOOGLE_SHEET_CONFIG.SCRIPT_URL, {
         method: 'POST',
         mode: 'no-cors',
@@ -123,9 +151,10 @@ export const OrderForm: React.FC<OrderFormProps> = ({ onNewOrder, products, grou
       });
       
       setStatus({ type: 'success' });
-      // Add to ticker!
+      // 更新 App.tsx 的狀態
       onNewOrder(newTickerOrder);
 
+      // 重置表單
       setCart([]);
       setFormData({ name: '', email: '', address: '', notes: '' });
     } catch (err) {
@@ -134,6 +163,7 @@ export const OrderForm: React.FC<OrderFormProps> = ({ onNewOrder, products, grou
     }
   };
 
+  // --- Render: 成功畫面 ---
   if (status.type === 'success') {
     return (
       <div className="bg-white rounded-2xl shadow-xl p-8 text-center border border-green-100 relative">
@@ -165,6 +195,7 @@ export const OrderForm: React.FC<OrderFormProps> = ({ onNewOrder, products, grou
     );
   }
 
+  // --- Render: 表單畫面 ---
   return (
     <div className="bg-white rounded-2xl shadow-xl border border-rose-100 overflow-hidden">
       <div className="bg-gradient-to-r from-rose-500 to-pink-600 p-4 text-white">
@@ -192,7 +223,7 @@ export const OrderForm: React.FC<OrderFormProps> = ({ onNewOrder, products, grou
           點擊圖片加入購物車
         </label>
         
-        {/* Visual Product Grid */}
+        {/* Visual Product Grid (商品選擇區) */}
         <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
           {products.map((p) => {
             const inCart = cart.find(item => item.id === p.id);
@@ -219,7 +250,7 @@ export const OrderForm: React.FC<OrderFormProps> = ({ onNewOrder, products, grou
                     {p.category}
                   </div>
                   
-                  {/* Overlay for clicking (Mobile friendly) */}
+                  {/* Overlay for clicking (手機版友善) */}
                   {!qty && (
                     <div 
                       onClick={() => addToCart(p)}
@@ -232,13 +263,13 @@ export const OrderForm: React.FC<OrderFormProps> = ({ onNewOrder, products, grou
                   )}
                 </div>
                 
-                {/* Content */}
+                {/* Product Info */}
                 <div className="p-3 flex-1 flex flex-col">
                   <h3 className="font-semibold text-slate-800 text-sm line-clamp-1 mb-1" title={p.name}>
                     {p.name}
                   </h3>
                   
-                  {/* Display Description if available */}
+                  {/* Description */}
                   {p.description && (
                      <p className="text-xs text-slate-500 line-clamp-2 mb-2 bg-slate-50 p-1 rounded">
                         {p.description}
@@ -246,8 +277,9 @@ export const OrderForm: React.FC<OrderFormProps> = ({ onNewOrder, products, grou
                   )}
 
                   <div className="flex justify-between items-end mt-auto pt-2">
-                    <span className="text-rose-600 font-bold text-sm">{p.priceEstimate}</span>
+                    <span className="text-rose-600 font-bold text-sm">{String(p.priceEstimate || '')}</span>
                     
+                    {/* Add/Remove Buttons */}
                     {qty > 0 ? (
                       <div className="flex items-center bg-rose-50 rounded-lg p-0.5 border border-rose-200">
                         <button 
@@ -279,14 +311,14 @@ export const OrderForm: React.FC<OrderFormProps> = ({ onNewOrder, products, grou
           })}
         </div>
 
-        {/* Fallback Empty state */}
+        {/* Empty State */}
         {products.length === 0 && (
            <div className="text-center p-8 bg-slate-50 rounded-xl">
              <p className="text-slate-500">目前沒有開團商品，請稍後再試。</p>
            </div>
         )}
         
-        {/* Fallback Error message */}
+        {/* Error message */}
         {cart.length === 0 && status.type === 'error' && (
           <p className="text-red-500 text-sm mt-4 font-medium flex items-center justify-center bg-red-50 p-2 rounded-lg">
              <AlertCircle size={16} className="mr-2" />
@@ -297,7 +329,7 @@ export const OrderForm: React.FC<OrderFormProps> = ({ onNewOrder, products, grou
 
       <form onSubmit={handleSubmit} className="p-8 space-y-6">
         
-        {/* Cart Summary */}
+        {/* 購物車摘要 (Cart Summary) */}
         {cart.length > 0 && (
           <div className="bg-slate-50 rounded-xl p-4 border border-slate-200">
              <div className="flex justify-between items-center mb-3 pb-2 border-b border-slate-200">
@@ -317,7 +349,7 @@ export const OrderForm: React.FC<OrderFormProps> = ({ onNewOrder, products, grou
                        <span className="truncate">{item.name}</span>
                     </div>
                     <div className="flex items-center">
-                       <span className="text-slate-500 mr-3 text-xs">{item.priceEstimate}/個</span>
+                       <span className="text-slate-500 mr-3 text-xs">{String(item.priceEstimate || '')}/個</span>
                        <button type="button" onClick={() => removeFromCart(item.id)} className="text-slate-400 hover:text-red-500">
                          <Trash2 size={14} />
                        </button>
@@ -332,13 +364,14 @@ export const OrderForm: React.FC<OrderFormProps> = ({ onNewOrder, products, grou
           </div>
         )}
 
+        {/* 使用者資料表單 */}
         <label className="block text-sm font-bold text-slate-700 mb-1 flex items-center">
           <span className="w-6 h-6 rounded-full bg-rose-500 text-white flex items-center justify-center text-xs mr-2">2</span>
           填寫訂購資料
         </label>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {/* Name Field */}
+          {/* 姓名 */}
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1">團員姓名 / 暱稱</label>
             <div className="relative">
@@ -356,7 +389,7 @@ export const OrderForm: React.FC<OrderFormProps> = ({ onNewOrder, products, grou
             </div>
           </div>
 
-          {/* Email Field */}
+          {/* Email */}
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1">Gmail 信箱</label>
             <div className="relative">
@@ -375,7 +408,7 @@ export const OrderForm: React.FC<OrderFormProps> = ({ onNewOrder, products, grou
           </div>
         </div>
 
-        {/* Address Field */}
+        {/* 地址 */}
         <div>
           <label className="block text-sm font-medium text-slate-700 mb-1">取貨方式 / 地址</label>
           <div className="relative">
@@ -393,7 +426,7 @@ export const OrderForm: React.FC<OrderFormProps> = ({ onNewOrder, products, grou
           </div>
         </div>
 
-        {/* Notes */}
+        {/* 備註 */}
         <div>
            <label className="block text-sm font-medium text-slate-700 mb-1">備註 (口味/款式/許願)</label>
            <textarea
@@ -406,7 +439,7 @@ export const OrderForm: React.FC<OrderFormProps> = ({ onNewOrder, products, grou
            />
         </div>
 
-        {/* Status Message */}
+        {/* 錯誤訊息 */}
         {status.type === 'error' && (
           <div className="flex items-center text-red-600 bg-red-50 p-3 rounded-lg text-sm">
             <AlertCircle size={18} className="mr-2 flex-shrink-0" />
@@ -414,7 +447,7 @@ export const OrderForm: React.FC<OrderFormProps> = ({ onNewOrder, products, grou
           </div>
         )}
 
-        {/* Submit Button */}
+        {/* 提交按鈕 */}
         <button
           type="submit"
           disabled={status.type === 'loading'}

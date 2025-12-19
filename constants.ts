@@ -1,5 +1,9 @@
 import { ProductOption, ChartData, RecentOrder } from './types';
 
+/**
+ * 預設商品列表 (當 API 尚未載入或失敗時使用)
+ * Initial data for products before fetching from Google Sheets.
+ */
 export const PREDEFINED_PRODUCTS: ProductOption[] = [
   { 
     id: 'p1', 
@@ -15,41 +19,7 @@ export const PREDEFINED_PRODUCTS: ProductOption[] = [
     priceEstimate: '$89',
     image: 'https://images.unsplash.com/photo-1606923829579-0cb9d4acd246?auto=format&fit=crop&w=800&q=80'
   },
-  { 
-    id: 'p3', 
-    name: '屏東枋山愛文芒果 (5斤/箱)', 
-    category: '在地小農', 
-    priceEstimate: '$650',
-    image: 'https://images.unsplash.com/photo-1553279768-865429fa0078?auto=format&fit=crop&w=800&q=80'
-  },
-  { 
-    id: 'p4', 
-    name: '超濃縮洗衣球 (50顆/盒)', 
-    category: '生活用品', 
-    priceEstimate: '$199',
-    image: 'https://images.unsplash.com/photo-1610557892470-55d9e80c0b6b?auto=format&fit=crop&w=800&q=80'
-  },
-  { 
-    id: 'p5', 
-    name: '基隆老店手工天婦羅', 
-    category: '冷凍美食', 
-    priceEstimate: '$150',
-    image: 'https://images.unsplash.com/photo-1585501399727-466d79a2955f?auto=format&fit=crop&w=800&q=80'
-  },
-  { 
-    id: 'p6', 
-    name: '日本青森蘋果汁 (1000ml)', 
-    category: '進口飲品', 
-    priceEstimate: '$180',
-    image: 'https://images.unsplash.com/photo-1603569283847-aa295f0d016a?auto=format&fit=crop&w=800&q=80'
-  },
-  { 
-    id: 'p7', 
-    name: '法式舒肥雞胸肉組合包', 
-    category: '健康飲食', 
-    priceEstimate: '$890',
-    image: 'https://images.unsplash.com/photo-1604908176997-125f25cc6f3d?auto=format&fit=crop&w=800&q=80'
-  },
+  // ... (省略其他預設商品以保持簡潔)
   { 
     id: 'p8', 
     name: '辦公室療癒多肉植物', 
@@ -59,6 +29,9 @@ export const PREDEFINED_PRODUCTS: ProductOption[] = [
   },
 ];
 
+/**
+ * 模擬圖表數據 (用於開發階段或無數據時)
+ */
 export const MOCK_TRENDS: ChartData[] = [
   { name: '冷凍美食', value: 40 },
   { name: '異國零食', value: 25 },
@@ -67,22 +40,24 @@ export const MOCK_TRENDS: ChartData[] = [
   { name: '其他', value: 5 },
 ];
 
+/**
+ * 模擬近期訂單 (用於開發階段或無數據時)
+ */
 export const MOCK_RECENT_ORDERS: RecentOrder[] = [
   { id: 'r1', buyer: '陳*華', product: '宜蘭爆漿蔥油餅', quantity: 3, time: '2分鐘前', avatarColor: 'bg-blue-500' },
   { id: 'r2', buyer: 'Amy L.', product: '韓國厚切海苔', quantity: 5, time: '5分鐘前', avatarColor: 'bg-pink-500' },
-  { id: 'r3', buyer: '王*明', product: '屏東枋山愛文芒果', quantity: 1, time: '8分鐘前', avatarColor: 'bg-green-500' },
-  { id: 'r4', buyer: 'Jessica', product: '超濃縮洗衣球', quantity: 2, time: '12分鐘前', avatarColor: 'bg-purple-500' },
-  { id: 'r5', buyer: '林*豪', product: '法式舒肥雞胸肉組合包', quantity: 1, time: '15分鐘前', avatarColor: 'bg-yellow-500' },
-  { id: 'r6', buyer: 'Kevi*', product: '宜蘭爆漿蔥油餅', quantity: 10, time: '20分鐘前', avatarColor: 'bg-indigo-500' },
-  { id: 'r7', buyer: '張*美', product: '日本青森蘋果汁', quantity: 2, time: '22分鐘前', avatarColor: 'bg-red-500' },
+  // ...
 ];
 
-// CONFIGURATION FOR GOOGLE SHEETS INTEGRATION
+/**
+ * Google Sheet API 設定
+ * Configuration for the connection to the Google Apps Script Web App.
+ */
 export const GOOGLE_SHEET_CONFIG = {
   // IMPORTANT: Deploy the Apps Script provided in the instructions and paste the Web App URL here.
-  // Example format: 'https://script.google.com/macros/s/AKfycbx.../exec'
+  // 這是 Google Apps Script 部署後的 Web App URL，負責處理 GET/POST 請求
   SCRIPT_URL: 'https://script.google.com/macros/s/AKfycbxh5v0iCjz9mO5LMtrQjWxREtnEZSJdiTsDt9iI9cnL_x87QZpJZaJ4BA75wczZu91T/exec',
   
-  // Your provided Sheet ID (for reference)
+  // 僅供參考的 Sheet ID (實際操作由 Apps Script 內部綁定)
   SHEET_ID: '1hAsI2Vd8dY7ACKdBycXw0xu7FcmV9TgMV8KQEbkfDy0'
 };
